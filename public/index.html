@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC Audio Chat</title>
+</head>
+<body>
+  <h1>WebRTC Audio Chat</h1>
+  <audio id="remoteAudio" autoplay></audio>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.3.2/peerjs.min.js"></script>
+  <script>
+    const socket = io();
+    const audioElement = document.getElementById('remoteAudio');
+
+    socket.on('your-id', id => {
+      console.log('Your ID:', id);
+    });
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        // Show your own audio
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(audioContext.destination);
+
+        // Send audio stream to the server
+        const peer = new SimplePeer({ initiator: true, stream });
+        peer.on('signal', signal => {
+          socket.emit('offer', { offer: signal, from: socket.id });
+        });
+
+        // Receive stream from other peer
+        socket.on('stream', data => {
+          if (data.stream) {
+            audioElement.srcObject = data.stream;
+          }
+        });
+        
+        // Send data through data channel
+        const dataChannel = peer.createDataChannel('chat');
+        dataChannel.onopen = () => {
+          dataChannel.send('Hello from peer!');
+        };
+        peer.on('data', data => {
+          console.log('Received data:', data.toString());
+        });
+      })
+      .catch(error => console.error('Error accessing microphone:', error));
+  </script>
+</body>
+</html>
